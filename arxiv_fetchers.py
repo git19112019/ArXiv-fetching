@@ -4,6 +4,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+import json
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 
 # Constants: URL cơ bản cho ArXiv API
 API_URL = "http://export.arxiv.org/api/query?"
@@ -101,17 +104,109 @@ def summarize_papers(papers):
             print(f"- {svo[0]} → {svo[1]} → {svo[2]}")
         print("=" * 50)
 
-def main():
+def save_papers_to_file(papers, filename="papers.json"):
     """
-    Entry point of the program. Fetch ArXiv papers and process their summaries.
+    Save the fetched papers to a JSON file.
     """
-    keyword = input("Enter search keyword: ")
-    num_results = int(input("Enter number of results to display: "))
-    papers = fetch_arxiv_papers(keyword, num_results)
-    if papers:
-        summarize_papers(papers)
-    else:
-        print("No papers found.")
+    try:
+        with open(filename, 'w') as file:
+            json.dump(papers, file, indent=4)
+        print(f"Papers saved to {filename}")
+    except Exception as e:
+        print(f"Error saving papers: {e}")
+
+def filter_papers_by_author(papers, author_name):
+    """
+    Filter the list of papers to include only those written by the specified author.
+    """
+    return [paper for paper in papers if author_name.lower() in (author.lower() for author in paper['authors'])]
+
+def search_papers_by_title(papers, keyword):
+    """
+    Search for papers with the specified keyword in their title.
+    """
+    return [paper for paper in papers if keyword.lower() in paper['title'].lower()]
+
+def rank_papers_by_keyword(papers, keyword):
+    """
+    Rank papers by the frequency of a specific keyword in their summaries.
+    """
+    def keyword_count(summary):
+        return summary.lower().count(keyword.lower())
+
+    return sorted(papers, key=lambda paper: keyword_count(paper['summary']), reverse=True)
+
+def generate_word_cloud(text):
+    """
+    Generate a word cloud from the given text.
+    """
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+    plt.figure(figsize=(10, 5))
+    plt.imshow(wordcloud, interpolation='bilinear')
+    plt.axis('off')
+    plt.show()
+
+def interactive_menu():
+    """
+    Display an interactive menu for the user to choose actions.
+    """
+    papers = []
+    while True:
+        print("\nMenu:")
+        print("1. Fetch papers")
+        print("2. Save papers to file")
+        print("3. Filter papers by author")
+        print("4. Search papers by title")
+        print("5. Rank papers by keyword")
+        print("6. Generate word cloud")
+        print("7. Exit")
+        choice = input("Enter your choice: ")
+
+        if choice == "1":
+            keyword = input("Enter search keyword: ")
+            num_results = int(input("Enter number of results to display: "))
+            papers = fetch_arxiv_papers(keyword, num_results)
+            if papers:
+                summarize_papers(papers)
+            else:
+                print("No papers found.")
+        elif choice == "2":
+            if papers:
+                filename = input("Enter filename to save papers (default: papers.json): ") or "papers.json"
+                save_papers_to_file(papers, filename)
+            else:
+                print("No papers to save.")
+        elif choice == "3":
+            if papers:
+                author = input("Enter author name: ")
+                filtered = filter_papers_by_author(papers, author)
+                summarize_papers(filtered)
+            else:
+                print("No papers to filter.")
+        elif choice == "4":
+            if papers:
+                keyword = input("Enter keyword to search in titles: ")
+                results = search_papers_by_title(papers, keyword)
+                summarize_papers(results)
+            else:
+                print("No papers to search.")
+        elif choice == "5":
+            if papers:
+                keyword = input("Enter keyword to rank papers by: ")
+                ranked = rank_papers_by_keyword(papers, keyword)
+                summarize_papers(ranked)
+            else:
+                print("No papers to rank.")
+        elif choice == "6":
+            if papers:
+                all_summaries = " ".join([paper['summary'] for paper in papers])
+                generate_word_cloud(all_summaries)
+            else:
+                print("No papers to generate word cloud.")
+        elif choice == "7":
+            break
+        else:
+            print("Invalid choice. Please try again.")
 
 if __name__ == '__main__':
-    main()
+    interactive_menu()
